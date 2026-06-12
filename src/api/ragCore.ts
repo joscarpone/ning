@@ -16,7 +16,7 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 // Utility to split text into chunks of max `chunkSize` characters, preserving word boundaries
 export function splitTextIntoChunks(text: string, chunkSize: number = 800): string[] {
   // Clean text
-  const cleanText = text.replace(/\\s+/g, ' ').trim();
+  const cleanText = text.replace(/\s+/g, ' ').trim();
   const chunks: string[] = [];
   
   let currentIndex = 0;

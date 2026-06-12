@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ollamaClient } from '../api/ollamaClient';
+import { useOllamaStore } from './useOllamaStore';
 import { readTextFile, readPdfFile, splitTextIntoChunks, cosineSimilarity } from '../api/ragCore';
 
 export interface DocumentVector {
@@ -46,7 +47,6 @@ export const useRagStore = create<RagState>()(
         
         // Auto-pull the embedding model if enabled
         if (willEnable) {
-          const { useOllamaStore } = await import('./useOllamaStore');
           const ollamaStore = useOllamaStore.getState();
           const { embeddingModel } = get();
           

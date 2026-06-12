@@ -2,7 +2,7 @@
 name = "ning"
 version = "0.0.0"
 description = "Local Thinking Total Protection"
-authors = ["you"]
+authors = ["joscarpone"]
 edition = "2021"
 
 [build-dependencies]

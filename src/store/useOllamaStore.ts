@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { ollamaClient, OllamaModel, ChatMessage } from '../api/ollamaClient'
+import { useRagStore } from './useRagStore'
 
 export interface AppMessage extends ChatMessage {
   id: string;
@@ -277,7 +278,6 @@ export const useOllamaStore = create<OllamaState>()(
         }));
 
         // === RAG INJECTION ===
-        const { useRagStore } = await import('./useRagStore');
         const ragStore = useRagStore.getState();
         if (ragStore.isRagEnabled) {
           const relevantChunks = await ragStore.searchRelevantChunks(content, 3);

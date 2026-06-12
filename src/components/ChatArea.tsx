@@ -4,36 +4,24 @@ import { useOllamaStore } from '../store/useOllamaStore'
 
 export function ChatArea() {
   const [input, setInput] = useState('')
-  const {
-    messages,
-    initPolling,
-    fetchModels,
-    localModels,
-    selectedModel,
-    setSelectedModel,
-    isOnline,
-    isGenerating,
-    streamingText,
-    sendMessage
-  } = useOllamaStore(state => ({
-    messages: state.sessions.find(s => s.id === state.currentSessionId)?.messages || [],
-    initPolling: state.initPolling,
-    fetchModels: state.fetchModels,
-    localModels: state.localModels,
-    selectedModel: state.selectedModel,
-    setSelectedModel: state.setSelectedModel,
-    isOnline: state.isOnline,
-    isGenerating: state.isGenerating,
-    streamingText: state.streamingText,
-    sendMessage: state.sendMessage
-  }))
+  const messages = useOllamaStore(state => state.sessions.find(s => s.id === state.currentSessionId)?.messages ?? [])
+  const initPolling = useOllamaStore(state => state.initPolling)
+  const fetchModels = useOllamaStore(state => state.fetchModels)
+  const localModels = useOllamaStore(state => state.localModels)
+  const selectedModel = useOllamaStore(state => state.selectedModel)
+  const setSelectedModel = useOllamaStore(state => state.setSelectedModel)
+  const isOnline = useOllamaStore(state => state.isOnline)
+  const isGenerating = useOllamaStore(state => state.isGenerating)
+  const streamingText = useOllamaStore(state => state.streamingText)
+  const sendMessage = useOllamaStore(state => state.sendMessage)
+  const abortGeneration = useOllamaStore(state => state.abortGeneration)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     initPolling()
     fetchModels()
-  }, [])
+  }, [initPolling, fetchModels])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -164,7 +152,7 @@ export function ChatArea() {
           <div className="flex items-center gap-2 ml-2">
             {isGenerating && (
               <button
-                onClick={useOllamaStore.getState().abortGeneration}
+                onClick={abortGeneration}
                 className="p-3 bg-red-500/20 text-red-500 hover:bg-red-500/30 rounded-xl transition-colors shrink-0 border border-red-500/30"
                 title="Stop"
               >

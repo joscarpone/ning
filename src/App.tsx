@@ -13,9 +13,10 @@ function App() {
   const accent = useAppStore(state => state.accent)
 
   useEffect(() => {
-    document.documentElement.className = ''
-    if (theme === 'dark') document.documentElement.classList.add('dark')
-    document.documentElement.classList.add(`accent-${accent}`)
+    const classList = document.documentElement.classList
+    classList.toggle('dark', theme === 'dark')
+    ;(['blue', 'purple', 'green', 'orange'] as const).forEach(a => classList.remove(`accent-${a}`))
+    classList.add(`accent-${accent}`)
   }, [theme, accent])
 
   return (

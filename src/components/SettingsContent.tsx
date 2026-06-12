@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useOllamaStore } from '../store/useOllamaStore'
-
+import { useRagStore } from '../store/useRagStore'
+import { UploadCloud, Loader2, Trash2 } from 'lucide-react'
 
 declare global {
   interface Window {
@@ -10,8 +11,6 @@ declare global {
     };
   }
 }
-
-import { useRagStore } from '../store/useRagStore'
 
 function AppearanceSettings() {
   const theme = useAppStore(state => state.theme)
@@ -426,7 +425,7 @@ function MCPServerSettings() {
 
 function RAGSettings() {
   const { isRagEnabled, toggleRag, uploadedFiles, isProcessing, addDocument, removeDocument } = useRagStore();
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -461,9 +460,9 @@ function RAGSettings() {
         >
           <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center text-textMuted mb-3 group-hover:text-primary transition-colors">
             {isProcessing ? (
-              <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              <Loader2 size={24} className="animate-spin" />
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+              <UploadCloud size={24} />
             )}
           </div>
           <h4 className="font-medium text-textMain mb-1">
@@ -490,7 +489,7 @@ function RAGSettings() {
                     onClick={() => removeDocument(file.id)}
                     className="p-2 opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-500/10 rounded-md transition-all"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                    <Trash2 size={16} />
                   </button>
                 </div>
               ))
