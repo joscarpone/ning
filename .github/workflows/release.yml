@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   build-tauri:
     strategy:
@@ -13,13 +17,15 @@ jobs:
         platform: [ubuntu-22.04, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.platform }}
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
       - name: setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -47,3 +53,4 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: true
           prerelease: false
+          args: --verbose
