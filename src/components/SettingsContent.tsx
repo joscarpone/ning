@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useOllamaStore } from '../store/useOllamaStore'
-import { Monitor, Cpu, Box, Cloud, HardDrive, Server, Database, Plus, Trash2 } from 'lucide-react'
-import { getAvailableModels, pullModel } from '../api/ollamaClient'
-import { mcpServers, addServer, removeServer } from '../store/useMcpStore'
+
 
 declare global {
   interface Window {
