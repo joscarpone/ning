@@ -36,8 +36,8 @@ set OLLAMA_ORIGINS="*" && ollama serve
 
 ### 3. Install & Run Ning
 ```bash
-git clone https://github.com/YOUR_USERNAME/ning-ai.git
-cd ning-ai
+git clone repo.git
+cd \dir
 npm install
 npm run dev
 ```
