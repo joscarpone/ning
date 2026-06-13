@@ -1,9 +1,10 @@
-name: Release Tauri App
+name: Build Tauri App
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 permissions:
@@ -49,9 +50,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WEBKIT2GTK_4_1: 1
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Ning ${{ github.ref_name }}"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
-          prerelease: false
           args: --verbose
