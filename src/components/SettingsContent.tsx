@@ -3,14 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useOllamaStore } from '../store/useOllamaStore'
 import { useRagStore } from '../store/useRagStore'
 import { UploadCloud, Loader2, Trash2 } from 'lucide-react'
-
-declare global {
-  interface Window {
-    __TAURI__?: {
-      invoke: (cmd: string, args?: any) => Promise<any>;
-    };
-  }
-}
+import { invoke } from '@tauri-apps/api/tauri'
 
 function AppearanceSettings() {
   const theme = useAppStore(state => state.theme)
@@ -60,9 +53,8 @@ function HardwareSettings() {
     // Try to get real hardware stats from Tauri backend
     const fetchTauriHardware = async () => {
       try {
-        // @ts-ignore: __TAURI__ injected at runtime if running in Tauri
-        if (window.__TAURI__) {
-          const specs = await window.__TAURI__.invoke('get_system_specs')
+        if (typeof window !== 'undefined' && '__TAURI__' in window) {
+          const specs = await invoke<any>('get_system_specs')
           setCpuCores(`${specs.cpu_cores} Cores (${specs.cpu_brand})`)
           setRam(`${specs.free_memory} MB Free / ${specs.total_memory} MB Total`)
           setGpu(`OS: ${specs.os_name}`)

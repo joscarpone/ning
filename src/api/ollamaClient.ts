@@ -1,3 +1,6 @@
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
+
 const OLLAMA_BASE_URL = 'http://localhost:11434';
 
 export interface OllamaModel {
@@ -15,10 +18,36 @@ export interface ChatMessage {
   content: string;
 }
 
+const isTauri = () => {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+};
+
+const proxyRequest = async (method: string, url: string, body?: any): Promise<Response> => {
+  if (isTauri()) {
+    try {
+      const res = await invoke<{status: number, text: string}>('proxy_request', {
+        method,
+        url,
+        body: body ? JSON.stringify(body) : null
+      });
+      return new Response(res.text, { status: res.status });
+    } catch (e: any) {
+      throw new Error(e);
+    }
+  } else {
+    const init: RequestInit = { method };
+    if (body) {
+      init.headers = { 'Content-Type': 'application/json' };
+      init.body = JSON.stringify(body);
+    }
+    return fetch(url, init);
+  }
+};
+
 export const ollamaClient = {
   async checkHealth(): Promise<boolean> {
     try {
-      const res = await fetch(`${OLLAMA_BASE_URL}/`, { method: 'GET' });
+      const res = await proxyRequest('GET', `${OLLAMA_BASE_URL}/`);
       return res.ok;
     } catch (e) {
       return false;
@@ -27,7 +56,7 @@ export const ollamaClient = {
 
   async fetchTags(): Promise<OllamaModel[]> {
     try {
-      const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`);
+      const res = await proxyRequest('GET', `${OLLAMA_BASE_URL}/api/tags`);
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
       return data.models || [];
@@ -52,7 +81,7 @@ export const ollamaClient = {
 
   async fetchRunningModels(): Promise<OllamaModel[]> {
     try {
-      const res = await fetch(`${OLLAMA_BASE_URL}/api/ps`);
+      const res = await proxyRequest('GET', `${OLLAMA_BASE_URL}/api/ps`);
       if (!res.ok) return [];
       const data = await res.json();
       return data.models || [];
@@ -63,11 +92,7 @@ export const ollamaClient = {
 
   async loadModel(name: string): Promise<boolean> {
     try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: name, keep_alive: -1 }) // Keep alive indefinitely until stopped
-      });
+      const response = await proxyRequest('POST', `${OLLAMA_BASE_URL}/api/generate`, { model: name, keep_alive: -1 });
       return response.ok;
     } catch (e) {
       console.error("Error loading model", e);
@@ -77,11 +102,7 @@ export const ollamaClient = {
 
   async unloadModel(name: string): Promise<boolean> {
     try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: name, keep_alive: 0 })
-      });
+      const response = await proxyRequest('POST', `${OLLAMA_BASE_URL}/api/generate`, { model: name, keep_alive: 0 });
       return response.ok;
     } catch (e) {
       console.error("Error unloading model", e);
@@ -91,11 +112,7 @@ export const ollamaClient = {
 
   async fetchEmbeddings(model: string, prompt: string): Promise<number[] | null> {
     try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/embeddings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt })
-      });
+      const response = await proxyRequest('POST', `${OLLAMA_BASE_URL}/api/embeddings`, { model, prompt });
       if (!response.ok) return null;
       const data = await response.json();
       return data.embedding;
@@ -136,54 +153,119 @@ export const ollamaClient = {
       return;
     }
 
-    try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: true
-        }),
-        signal
-      });
+    if (isTauri()) {
+      const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+      let unlistenStream: UnlistenFn | null = null;
+      let unlistenError: UnlistenFn | null = null;
+      let unlistenDone: UnlistenFn | null = null;
 
-      if (!response.body) throw new Error('No response body');
+      const cleanup = () => {
+        if (unlistenStream) unlistenStream();
+        if (unlistenError) unlistenError();
+        if (unlistenDone) unlistenDone();
+      };
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          cleanup();
+          onError(new Error('Aborted'));
+        });
+      }
 
-      while (true) {
-        if (signal?.aborted) {
-          reader.cancel();
-          throw new Error('Aborted');
-        }
-        
-        const { done, value } = await reader.read();
-        if (done) {
+      try {
+        const decoder = new TextDecoder();
+        unlistenStream = await listen<number[]>(`stream_${id}`, (event) => {
+          if (signal?.aborted) return;
+          const chunkStr = decoder.decode(new Uint8Array(event.payload), { stream: true });
+          const lines = chunkStr.split('\n').filter(line => line.trim() !== '');
+          for (const line of lines) {
+             try {
+               const data = JSON.parse(line);
+               if (data.message && data.message.content) {
+                 onChunk(data.message.content);
+               }
+             } catch (e) {
+               console.error("Error parsing JSON chunk", line);
+             }
+          }
+        });
+
+        unlistenError = await listen<string>(`stream_error_${id}`, (event) => {
+          if (signal?.aborted) return;
+          cleanup();
+          onError(new Error(event.payload));
+        });
+
+        unlistenDone = await listen<void>(`stream_done_${id}`, () => {
+          if (signal?.aborted) return;
+          cleanup();
           onComplete();
-          break;
-        }
-        
-        const chunkStr = decoder.decode(value, { stream: true });
-        const lines = chunkStr.split('\n').filter(line => line.trim() !== '');
-        
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line);
-            if (data.message && data.message.content) {
-              onChunk(data.message.content);
+        });
+
+        await invoke('proxy_stream', {
+          id,
+          method: 'POST',
+          url: `${OLLAMA_BASE_URL}/api/chat`,
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: true
+          })
+        });
+      } catch (e: any) {
+        cleanup();
+        onError(e);
+      }
+    } else {
+      try {
+        const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: true
+          }),
+          signal
+        });
+
+        if (!response.body) throw new Error('No response body');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          if (signal?.aborted) {
+            reader.cancel();
+            throw new Error('Aborted');
+          }
+
+          const { done, value } = await reader.read();
+          if (done) {
+            onComplete();
+            break;
+          }
+
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.message && data.message.content) {
+                onChunk(data.message.content);
+              }
+            } catch (e) {
+              console.error("Error parsing JSON chunk", line);
             }
-          } catch (e) {
-            console.error("Error parsing JSON chunk", line);
           }
         }
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message === 'Aborted') {
-        onError(new Error('Aborted'));
-      } else {
-        onError(err);
+      } catch (err: any) {
+        if (err.name === 'AbortError' || err.message === 'Aborted') {
+          onError(new Error('Aborted'));
+        } else {
+          onError(err);
+        }
       }
     }
   },
@@ -200,57 +282,126 @@ export const ollamaClient = {
       return;
     }
 
-    try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, stream: true })
-      });
+    if (isTauri()) {
+       const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+       let unlistenStream: UnlistenFn | null = null;
+       let unlistenError: UnlistenFn | null = null;
+       let unlistenDone: UnlistenFn | null = null;
 
-      if (!response.body) throw new Error('No response body');
+       let successReceived = false;
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let successReceived = false;
+       const cleanup = () => {
+         if (unlistenStream) unlistenStream();
+         if (unlistenError) unlistenError();
+         if (unlistenDone) unlistenDone();
+       };
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          if (successReceived) {
-            onComplete();
-          } else {
-            onError(new Error("Connection closed unexpectedly."));
-          }
-          break;
-        }
+       try {
+          const decoder = new TextDecoder();
+          unlistenStream = await listen<number[]>(`stream_${id}`, (event) => {
+             const chunkStr = decoder.decode(new Uint8Array(event.payload), { stream: true });
+             const lines = chunkStr.split('\n').filter(line => line.trim() !== '');
+             for (const line of lines) {
+                try {
+                  const data = JSON.parse(line);
+                  if (data.status) {
+                    if (data.status === 'success') {
+                      successReceived = true;
+                    }
+                    let percent = 0;
+                    if (data.total && data.completed) {
+                      percent = Math.round((data.completed / data.total) * 100);
+                    }
+                    onProgress(data.status, percent);
+                  }
+                  if (data.error) {
+                    cleanup();
+                    onError(new Error(data.error));
+                    return;
+                  }
+                } catch (e) {
+                  // ignore JSON parse error for partial chunks
+                }
+             }
+          });
 
-        const chunkStr = decoder.decode(value, { stream: true });
-        const lines = chunkStr.split('\n').filter(line => line.trim() !== '');
+          unlistenError = await listen<string>(`stream_error_${id}`, (event) => {
+            cleanup();
+            onError(new Error(event.payload));
+          });
 
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line);
-            if (data.status) {
-              if (data.status === 'success') {
-                successReceived = true;
-              }
-              let percent = 0;
-              if (data.total && data.completed) {
-                percent = Math.round((data.completed / data.total) * 100);
-              }
-              onProgress(data.status, percent);
+          unlistenDone = await listen<void>(`stream_done_${id}`, () => {
+            cleanup();
+            if (successReceived) {
+              onComplete();
+            } else {
+              onError(new Error("Connection closed unexpectedly."));
             }
-            if (data.error) {
-              onError(new Error(data.error));
-              return;
+          });
+
+          await invoke('proxy_stream', {
+            id,
+            method: 'POST',
+            url: `${OLLAMA_BASE_URL}/api/pull`,
+            body: JSON.stringify({ name, stream: true })
+          });
+       } catch (e: any) {
+          cleanup();
+          onError(e);
+       }
+    } else {
+      try {
+        const response = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, stream: true })
+        });
+
+        if (!response.body) throw new Error('No response body');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let successReceived = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            if (successReceived) {
+              onComplete();
+            } else {
+              onError(new Error("Connection closed unexpectedly."));
             }
-          } catch (e) {
-            // ignore JSON parse error for partial chunks
+            break;
+          }
+
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.status) {
+                if (data.status === 'success') {
+                  successReceived = true;
+                }
+                let percent = 0;
+                if (data.total && data.completed) {
+                  percent = Math.round((data.completed / data.total) * 100);
+                }
+                onProgress(data.status, percent);
+              }
+              if (data.error) {
+                onError(new Error(data.error));
+                return;
+              }
+            } catch (e) {
+              // ignore JSON parse error for partial chunks
+            }
           }
         }
+      } catch (err) {
+        onError(err);
       }
-    } catch (err) {
-      onError(err);
     }
   }
 };
