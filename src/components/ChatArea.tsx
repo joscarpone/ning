@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Send, Plus, Zap, User, Bot, Loader2, Copy, Edit3, Download, Settings } from 'lucide-react'
+import { Send, Paperclip, Zap, User, Bot, Loader2, Copy, Edit3, Download, Sliders } from 'lucide-react'
 import { useOllamaStore } from '../store/useOllamaStore'
 import { CustomizeModal } from './CustomizeModal'
 
@@ -161,7 +161,7 @@ export function ChatArea() {
             className="p-3 text-textMuted hover:text-textMain hover:bg-white/5 rounded-xl transition-colors"
             title="Attach file"
           >
-            <Plus size={20} />
+            <Paperclip size={20} />
           </button>
 
           <button
@@ -169,7 +169,7 @@ export function ChatArea() {
             className="p-3 text-textMuted hover:text-textMain hover:bg-white/5 rounded-xl transition-colors"
             title="Personalize"
           >
-            <Settings size={20} />
+            <Sliders size={20} />
           </button>
 
           <textarea
