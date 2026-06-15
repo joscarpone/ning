@@ -16,30 +16,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-20.04, macos-latest, windows-latest]
+        platform: [ubuntu-22.04, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v3
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      - uses: actions/checkout@v4
 
       - name: setup node
-        uses: actions/setup-node@v3
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-20.04'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-
       - name: install frontend dependencies
         run: npm install
 
@@ -47,10 +42,9 @@ jobs:
         run: npm run build
 
       - name: build tauri app
-        uses: tauri-apps/tauri-action@v0.5.0
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           args: --verbose
           tagName: v__VERSION__
@@ -59,9 +53,7 @@ jobs:
           releaseDraft: false
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        uses: actions/upload-artifact@v4
         with:
           name: tauri-artifacts-${{ matrix.platform }}
           path: |
