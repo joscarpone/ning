@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::fs;
 use once_cell::sync::Lazy;
 use rusqlite::{params, Connection};
+use sqlite_vec::sqlite3_vec_init;
 
 static DB_CONN: Lazy<Arc<Mutex<Option<Connection>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
 
@@ -49,10 +50,9 @@ fn init_db() -> Result<(), String> {
         return Ok(());
     }
 
-    // Load sqlite-vss extension via auto_extension so new connections load it automatically
+    // Load sqlite-vec extension via auto_extension so new connections load it automatically
     unsafe {
-        rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(sqlite_vss::sqlite3_vector_init as *const ())));
-        rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(sqlite_vss::sqlite3_vss_init as *const ())));
+        rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())));
     }
 
     // We must reopen/open to apply the auto extensions to our conn
@@ -67,10 +67,10 @@ fn init_db() -> Result<(), String> {
         [],
     ).map_err(|e| e.to_string())?;
 
-    // Create a virtual table for embeddings using sqlite-vss
+    // Create a virtual table for embeddings using sqlite-vec
     conn.execute(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS vss_documents USING vss0(
-            embedding(768) -- assuming nomic-embed-text size
+        "CREATE VIRTUAL TABLE IF NOT EXISTS vss_documents USING vec0(
+            embedding float[768] -- assuming nomic-embed-text size
         )",
         [],
     ).map_err(|e| e.to_string())?;
@@ -99,7 +99,7 @@ fn insert_embedding(text: String, embedding: Vec<f32>) -> Result<(), String> {
 
     let last_id = tx.last_insert_rowid();
 
-    // Convert f32 vec to JSON string for sqlite-vss
+    // Convert f32 vec to JSON string for sqlite-vec
     let embedding_json = serde_json::to_string(&embedding).map_err(|e| e.to_string())?;
 
     tx.execute(
@@ -129,7 +129,7 @@ fn query_embeddings(embedding: Vec<f32>, limit: usize) -> Result<Vec<QueryResult
         "SELECT d.text, v.distance
          FROM vss_documents v
          JOIN documents d ON d.id = v.rowid
-         WHERE vss_search(v.embedding, ?1)
+         WHERE v.embedding MATCH ?1
          ORDER BY v.distance ASC
          LIMIT ?2"
     ).map_err(|e| e.to_string())?;
