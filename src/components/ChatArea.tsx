@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
-import { Send, Plus, Zap, User, Bot, Loader2, Copy, Edit3, Download } from 'lucide-react'
+import { Send, Plus, Zap, User, Bot, Loader2, Copy, Edit3, Download, Settings } from 'lucide-react'
 import { useOllamaStore } from '../store/useOllamaStore'
+import { CustomizeModal } from './CustomizeModal'
 
 export function ChatArea() {
   const [input, setInput] = useState('')
+  const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const messages = useOllamaStore(state => state.sessions.find(s => s.id === state.currentSessionId)?.messages ?? [])
   const initPolling = useOllamaStore(state => state.initPolling)
   const fetchModels = useOllamaStore(state => state.fetchModels)
@@ -38,6 +41,18 @@ export function ChatArea() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    }
+  }
+
+  const handleFileAttach = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Logic for file handling would go here.
+      console.log('File selected:', file.name)
     }
   }
 
@@ -135,8 +150,26 @@ export function ChatArea() {
       {/* Input Area */}
       <div className="p-4 px-6 shrink-0 max-w-4xl mx-auto w-full">
         <div className="bg-surface border border-border rounded-2xl p-2 flex items-end shadow-lg focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
-          <button className="p-3 text-textMuted hover:text-textMain hover:bg-white/5 rounded-xl transition-colors">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
+            onClick={handleFileAttach}
+            className="p-3 text-textMuted hover:text-textMain hover:bg-white/5 rounded-xl transition-colors"
+            title="Attach file"
+          >
             <Plus size={20} />
+          </button>
+
+          <button
+            onClick={() => setIsCustomizeModalOpen(true)}
+            className="p-3 text-textMuted hover:text-textMain hover:bg-white/5 rounded-xl transition-colors"
+            title="Personalize"
+          >
+            <Settings size={20} />
           </button>
 
           <textarea
@@ -184,6 +217,11 @@ export function ChatArea() {
           </div>
         </footer>
       </div>
+
+      <CustomizeModal
+        isOpen={isCustomizeModalOpen}
+        onClose={() => setIsCustomizeModalOpen(false)}
+      />
     </div>
   )
 }
