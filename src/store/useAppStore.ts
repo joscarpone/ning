@@ -36,7 +36,7 @@ export const useAppStore = create<AppState>()(
       isSettingsOpen: false,
       isHistoryOpen: false,
       activeSettingsTab: 'Appearance',
-      theme: 'dark',
+      theme: 'light',
       accent: 'blue',
       chatInput: '',
       mcpServers: [
